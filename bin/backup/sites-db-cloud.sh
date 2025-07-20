@@ -5,12 +5,14 @@ DATE_STAMP=$(date '+%Y-%m-%d--%H-%M-%S')
 TODAY=$(date +%F)
 
 BACKUP_DIR="$HOME/backups/websites"
+DAY_DIR="$BACKUP_DIR/$TODAY"
+
 BACKUP_FILES=( "/var/www" ) 
 # BACKUP_FILES=("/home/" "/var/www/html" "/var/lib/mysql" "/etc" "/boot" "/root")
-LOG_FILE="$BACKUP_DIR/backups.log"
 
-# retenção local em dias
-MAX_BACKUPS=5
+LOG_FILE="$BACKUP_DIR/backups.log"
+MAX_BACKUPS=30  # quantidade de dias de pasta para manter(backup é salvo em pasta por dia)
+MAX_BACKUPS=5 # retenção local em dias (fora de uso)
 
 # remotes configurados no rclone
 REMOTE_GDRIVE="gdrive-lullinho30"
@@ -25,7 +27,7 @@ CHECKERS=8
 set -euo pipefail
 
 init() {
-  mkdir -p "$BACKUP_DIR"
+  mkdir -p "$DAY_DIR"
 }
 
 do_sites_backup() {
@@ -33,7 +35,7 @@ do_sites_backup() {
   echo "[INFO] Criando backup: $backup_name"
   tar \
     --exclude="$BACKUP_DIR" \
-    -cvzpf "$BACKUP_DIR/$backup_name" \
+    -cvzpf "$DAY_DIR/$backup_name" \
     "${BACKUP_FILES[@]}"
 }
 
@@ -41,14 +43,14 @@ do_db_backup() {
   local all_dbs="databases-${DATE_STAMP}.sql"
   local wp_db="wp_dropshippingal-${DATE_STAMP}.sql"
   echo "[INFO] Dump de todas as bases MariaDB: $all_dbs"
-  mysqldump -A > "$BACKUP_DIR/$all_dbs"
+  mysqldump -A > "$DAY_DIR/$all_dbs"
   # Sem -p, sem prompt: credenciais em ~/.my.cnf
   echo "[INFO] Dump da base wp_dropshippingal: $wp_db"
-  mysqldump wp_dropshippingal > "$BACKUP_DIR/$wp_db"
+  mysqldump wp_dropshippingal > "$DAY_DIR/$wp_db"
 }
 
 upload_backups() {
-  local src="$BACKUP_DIR"
+  local src="$DAY_DIR"
   local dest_gd="${REMOTE_GDRIVE}:${REMOTE_PATH}/${TODAY}"
   local dest_od="${REMOTE_ONEDRIVE}:${REMOTE_PATH}/${TODAY}"
 
@@ -70,15 +72,27 @@ upload_backups() {
 }
 
 cleanup_local() {
-  echo "[INFO] Removendo backups locais com mais de $MAX_BACKUPS dias"
-  find "$BACKUP_DIR" -type f -mtime +"$MAX_BACKUPS" -delete
+  echo "[INFO] Limpando pastas locais com mais de $MAX_BACKUPS dias em $BACKUP_DIR"
+  find "$BACKUP_DIR" -maxdepth 1 -type d \
+    ! -name "$(basename "$BACKUP_DIR")" \
+    -mtime +$MAX_BACKUPS \
+    -exec rm -rf {} +
 }
 
 write_log() {
   {
     echo "=== Início: $(date '+%F %T') ==="
-    echo "Backups criados:"
-    ls -1 "$BACKUP_DIR" | grep -E "${TODAY}"
+    echo "Pasta de backup: $DAY_DIR"
+    ls -1 "$DAY_DIR"
+    echo "=== Fim:    $(date '+%F %T') ==="
+    echo
+  } >> "$LOG_FILE"
+  echo "[INFO] Log atualizado em $LOG_FILE"
+}write_log() {
+  {
+    echo "=== Início: $(date '+%F %T') ==="
+    echo "Pasta de backup: $DAY_DIR"
+    ls -1 "$DAY_DIR"
     echo "=== Fim:    $(date '+%F %T') ==="
     echo
   } >> "$LOG_FILE"
