@@ -88,15 +88,6 @@ write_log() {
     echo
   } >> "$LOG_FILE"
   echo "[INFO] Log atualizado em $LOG_FILE"
-}write_log() {
-  {
-    echo "=== Início: $(date '+%F %T') ==="
-    echo "Pasta de backup: $DAY_DIR"
-    ls -1 "$DAY_DIR"
-    echo "=== Fim:    $(date '+%F %T') ==="
-    echo
-  } >> "$LOG_FILE"
-  echo "[INFO] Log atualizado em $LOG_FILE"
 }
 
 main() {
